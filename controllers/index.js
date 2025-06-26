@@ -12,6 +12,10 @@ module.exports = function () {
     router.get('/ping', (req, res) => {
         res.status(200).send('pong');
     })
+    router.get('/check', middleware, (req, res) => {
+    // Token hợp lệ → trả 200
+    return res.sendStatus(200);
+});
 
     return router
 }
