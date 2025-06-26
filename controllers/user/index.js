@@ -12,44 +12,51 @@ const currentDirectory = __dirname;
 const parentDirectory = path.resolve(currentDirectory, '..', '..');
 const savePathImageAvatar = `${parentDirectory}/images/avatar`;
 
+const cloudinary = require('../../utils/cloudinary');
+
 module.exports = () => {
     router.post('/update', async (req, res) => {
         try {
-            const UserID = req.UserID
-            const { FullName } = req.body
-            let user = await models.Users.findOne({ _id: new ObjectId(UserID) }).exec()
-            if (user == null) {
-                return res.status(400).json({ status: 0, data: null, message: 'User not found' })
+            const UserID = req.UserID;
+            const { FullName } = req.body;
+
+            const user = await models.Users.findOne({ _id: new ObjectId(UserID) }).exec();
+            if (!user) {
+                return res.status(400).json({ status: 0, data: null, message: 'User not found' });
             }
-            let avatar = null
-            for (const file of req.files) {
-                if (file.fieldname === 'avatar') {
-                    const extension = file.originalname.split('.').pop();
-                    const nameFile = uuidv4();
-                    const fullPath = path.join(savePathImageAvatar, `${nameFile}.${extension}`);
-                    fs.writeFileSync(fullPath, file.buffer);
-                    avatar = `/avatar/${nameFile}.${extension}`;
+
+            const updateObject = {};
+            if (FullName) updateObject.FullName = FullName;
+
+            // Upload file avatar (nếu có)
+            if (req.files && req.files.length > 0) {
+                const avatarFile = req.files.find(file => file.fieldname === 'avatar');
+                if (avatarFile) {
+                    const base64 = avatarFile.buffer.toString('base64');
+                    const dataUri = `data:${avatarFile.mimetype};base64,${base64}`;
+
+                    const uploadRes = await cloudinary.uploader.upload(dataUri, {
+                        folder: 'avatars',
+                        public_id: uuidv4(),
+                    });
+
+                    updateObject.Avatar = uploadRes.secure_url; // lấy URL public của ảnh
                 }
             }
-            const updateObject = {};
 
-            if (FullName) {
-                updateObject.FullName = FullName;
-            }
-
-            if (avatar) {
-                updateObject.Avatar = avatar;
-            }
             updateObject.UpdateAt = moment().toDate();
+
             if (Object.keys(updateObject).length > 0) {
-                await models.Users.updateOne({ _id: user._id }, updateObject);
+                await models.Users.updateOne({ _id: user._id }, { $set: updateObject });
             }
-            return res.status(200).json({ status: 1, data: null, message: "update success" })
+
+            return res.status(200).json({ status: 1, data: null, message: "update success" });
 
         } catch (error) {
-            return res.status(400).json({ status: 0, data: null, message: error.message })
+            console.error(error);
+            return res.status(400).json({ status: 0, data: null, message: error.message });
         }
-    })
+    });
 
     router.get('/info', async (req, res) => {
         try {
